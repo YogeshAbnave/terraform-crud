@@ -1,0 +1,90 @@
+name: Deploy CRUD Application
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy backend to EC2
+        run: |
+          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} "mkdir -p /var/www/backend"
+          scp -i ~/.ssh/id_rsa -r backend/* ubuntu@${{ secrets.EC2_HOST }}:/var/www/backend/
+
+      - name: Setup backend environment on EC2
+        run: |
+          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << 'ENDSSH'
+          cd /var/www/backend
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          ENDSSH
+
+      - name: Deploy frontend to EC2
+        run: |
+          scp -i ~/.ssh/id_rsa -r frontend/dist/* ubuntu@${{ secrets.EC2_HOST }}:/var/www/html/
+
+      - name: Restart services
+        run: |
+          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << 'ENDSSH'
+          sudo systemctl restart fastapi
+          sudo systemctl restart nginx
+          ENDSSH
+
+      - name: Health check
+        run: |
+          sleep 10
+          curl -f http://${{ secrets.EC2_HOST }}/api/health || exit 1
+          echo "✅ Deployment successful!"
+          echo "🌐 Application URL: http://${{ secrets.EC2_HOST }}"
+          echo "🔌 API URL: http://${{ secrets.EC2_HOST }}/api"
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "### 🚀 Deployment Successful! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Application URL:** http://${{ secrets.EC2_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "**API URL:** http://${{ secrets.EC2_HOST }}/api" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Deployed at:** $(date)" >> $GITHUB_STEP_SUMMARY
