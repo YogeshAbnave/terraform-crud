@@ -48,6 +48,40 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Check infrastructure status
+        id: check-infra
+        continue-on-error: true
+        run: |
+          echo "🔍 Checking AWS infrastructure..."
+          
+          # Check if ALB exists
+          ALB_EXISTS=$(aws elbv2 describe-load-balancers --names crud-app-alb --query 'LoadBalancers[0].LoadBalancerName' --output text 2>/dev/null || echo "")
+          
+          # Check if ASG exists
+          ASG_EXISTS=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names crud-app-asg --query 'AutoScalingGroups[0].AutoScalingGroupName' --output text 2>/dev/null || echo "")
+          
+          if [ -z "$ALB_EXISTS" ] || [ "$ALB_EXISTS" == "None" ]; then
+            echo "⚠️ WARNING: ALB 'crud-app-alb' not found"
+            echo "alb_exists=false" >> $GITHUB_OUTPUT
+          else
+            echo "✅ ALB found: $ALB_EXISTS"
+            echo "alb_exists=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ -z "$ASG_EXISTS" ] || [ "$ASG_EXISTS" == "None" ]; then
+            echo "⚠️ WARNING: ASG 'crud-app-asg' not found"
+            echo "asg_exists=false" >> $GITHUB_OUTPUT
+          else
+            echo "✅ ASG found: $ASG_EXISTS"
+            echo "asg_exists=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ "${{ steps.check-infra.outputs.alb_exists }}" != "true" ] || [ "${{ steps.check-infra.outputs.asg_exists }}" != "true" ]; then
+            echo ""
+            echo "⚠️ Infrastructure incomplete. Deploy Terraform first:"
+            echo "  cd terraform-crud/terraform && terraform apply"
+          fi
+
       - name: Get ASG instance IPs
         id: get-instances
         run: |
@@ -56,8 +90,18 @@ jobs:
                       "Name=instance-state-name,Values=running" \
             --query 'Reservations[*].Instances[*].PublicIpAddress' \
             --output text)
+          
+          if [ -z "$INSTANCE_IPS" ]; then
+            echo "❌ ERROR: No running instances found in ASG 'crud-app-asg'"
+            echo "Please ensure Terraform infrastructure is deployed:"
+            echo "  cd terraform-crud/terraform"
+            echo "  terraform init"
+            echo "  terraform apply"
+            exit 1
+          fi
+          
           echo "instances=$INSTANCE_IPS" >> $GITHUB_OUTPUT
-          echo "Found instances: $INSTANCE_IPS"
+          echo "✅ Found instances: $INSTANCE_IPS"
 
       - name: Setup SSH key
         run: |
@@ -101,28 +145,65 @@ jobs:
 
       - name: Get ALB DNS
         id: get-alb
+        continue-on-error: true
         run: |
           ALB_DNS=$(aws elbv2 describe-load-balancers \
             --names crud-app-alb \
             --query 'LoadBalancers[0].DNSName' \
-            --output text)
-          echo "alb_dns=$ALB_DNS" >> $GITHUB_OUTPUT
-          echo "ALB DNS: $ALB_DNS"
+            --output text 2>/dev/null || echo "")
+          
+          if [ -z "$ALB_DNS" ] || [ "$ALB_DNS" == "None" ]; then
+            echo "⚠️ ALB not found. Please deploy Terraform infrastructure first:"
+            echo "  cd terraform-crud/terraform"
+            echo "  terraform init"
+            echo "  terraform apply"
+            echo "alb_dns=" >> $GITHUB_OUTPUT
+            echo "alb_exists=false" >> $GITHUB_OUTPUT
+          else
+            echo "alb_dns=$ALB_DNS" >> $GITHUB_OUTPUT
+            echo "alb_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ ALB DNS: $ALB_DNS"
+          fi
 
       - name: Health check via ALB
+        if: steps.get-alb.outputs.alb_exists == 'true'
         run: |
           sleep 15
           curl -f http://${{ steps.get-alb.outputs.alb_dns }}/api/health || exit 1
           echo "✅ Deployment successful!"
           echo "🌐 Application URL: http://${{ steps.get-alb.outputs.alb_dns }}"
+      
+      - name: Health check skipped
+        if: steps.get-alb.outputs.alb_exists != 'true'
+        run: |
+          echo "⚠️ Health check skipped - ALB not found"
+          echo "📋 Code deployed to instances, but ALB is not configured"
+          echo "🔧 Next steps:"
+          echo "  1. Deploy Terraform infrastructure to create the ALB"
+          echo "  2. Re-run this workflow for full deployment verification"
 
       - name: Deployment summary
         if: success()
         run: |
           echo "### 🚀 Deployment Successful! 🎉" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Application URL:** http://${{ steps.get-alb.outputs.alb_dns }}" >> $GITHUB_STEP_SUMMARY
-          echo "**API URL:** http://${{ steps.get-alb.outputs.alb_dns }}/api" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.get-alb.outputs.alb_exists }}" == "true" ]; then
+            echo "**Application URL:** http://${{ steps.get-alb.outputs.alb_dns }}" >> $GITHUB_STEP_SUMMARY
+            echo "**API URL:** http://${{ steps.get-alb.outputs.alb_dns }}/api" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **ALB Not Found** - Infrastructure not fully deployed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+            echo "1. Deploy Terraform infrastructure:" >> $GITHUB_STEP_SUMMARY
+            echo '   ```bash' >> $GITHUB_STEP_SUMMARY
+            echo "   cd terraform-crud/terraform" >> $GITHUB_STEP_SUMMARY
+            echo "   terraform init" >> $GITHUB_STEP_SUMMARY
+            echo "   terraform apply" >> $GITHUB_STEP_SUMMARY
+            echo '   ```' >> $GITHUB_STEP_SUMMARY
+            echo "2. Re-run this workflow for full deployment" >> $GITHUB_STEP_SUMMARY
+          fi
+          
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Instances Deployed:** ${{ steps.get-instances.outputs.instances }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

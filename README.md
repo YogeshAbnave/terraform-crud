@@ -39,21 +39,33 @@ Access: `http://localhost:3000`
 
 ### AWS Deployment
 
-```powershell
-# Step 1: Deploy infrastructure
-.\deploy.ps1 -Deploy
+⚠️ **IMPORTANT:** Deploy infrastructure BEFORE pushing code to GitHub!
 
-# Step 2: Get GitHub secrets and add them
+```powershell
+# Step 1: Deploy Terraform infrastructure (REQUIRED FIRST)
+cd terraform
+terraform init
+terraform apply
+
+# Step 2: Get GitHub secrets and add them to your repository
+cd ..
 .\deploy.ps1 -Secrets
 
-# Step 3: Push code (triggers auto-deployment)
-.\deploy.ps1 -Push
+# Step 3: Push code to GitHub (triggers auto-deployment)
+git add .
+git commit -m "Deploy application"
+git push origin main
 ```
 
-Or run all at once:
+Or use the automated script:
 ```powershell
 .\deploy.ps1 -All
 ```
+
+**Why this order matters:**
+- The GitHub Actions workflow expects the ALB and ASG to exist
+- Terraform creates these resources
+- Without them, the deployment will fail with "LoadBalancerNotFound" error
 
 ## 📁 Project Structure
 
