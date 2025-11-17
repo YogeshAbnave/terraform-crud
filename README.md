@@ -58,13 +58,21 @@ terraform apply
 
 # Step 2: Get GitHub secrets and add them to your repository
 cd ..
-.\deploy.ps1 -Secrets
+.\scripts\get-secrets.ps1
+
+# Add these secrets to GitHub:
+# https://github.com/YOUR_USERNAME/terraform-crud/settings/secrets/actions
+# - AWS_ACCESS_KEY_ID
+# - AWS_SECRET_ACCESS_KEY  
+# - EC2_PRIVATE_KEY (copy the ENTIRE private key including BEGIN/END lines)
 
 # Step 3: Push code to GitHub (triggers auto-deployment)
 git add .
 git commit -m "Deploy application"
 git push origin main
 ```
+
+📖 **Having issues with SSH authentication?** See [GITHUB-SECRETS-SETUP.md](GITHUB-SECRETS-SETUP.md)
 
 Or use the automated script:
 ```powershell
