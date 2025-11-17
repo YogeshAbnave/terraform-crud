@@ -1,16 +1,16 @@
-output "ec2_public_ip" {
-  description = "Public IP of EC2 instance"
-  value       = aws_instance.app.public_ip
+output "alb_dns_name" {
+  description = "DNS name of the Application Load Balancer"
+  value       = aws_lb.main.dns_name
 }
 
 output "app_url" {
   description = "Application URL"
-  value       = "http://${aws_instance.app.public_ip}"
+  value       = "http://${aws_lb.main.dns_name}"
 }
 
 output "backend_url" {
   description = "Backend API URL"
-  value       = "http://${aws_instance.app.public_ip}/api"
+  value       = "http://${aws_lb.main.dns_name}/api"
 }
 
 output "dynamodb_table_name" {
@@ -18,22 +18,29 @@ output "dynamodb_table_name" {
   value       = aws_dynamodb_table.main.name
 }
 
-output "ssh_command" {
-  description = "SSH command to connect to EC2"
-  value       = "ssh -i .ssh/crud-app-key ubuntu@${aws_instance.app.public_ip}"
-}
-
 output "private_key_path" {
   description = "Path to private SSH key"
   value       = local_file.private_key.filename
 }
 
-output "github_secrets" {
-  description = "GitHub Secrets configuration"
-  value = {
-    EC2_HOST        = aws_instance.app.public_ip
-    EC2_PRIVATE_KEY = "See file: ${local_file.private_key.filename}"
-  }
+output "asg_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = aws_autoscaling_group.app.name
+}
+
+output "vpc_id" {
+  description = "ID of the VPC"
+  value       = aws_vpc.main.id
+}
+
+output "public_subnet_ids" {
+  description = "IDs of public subnets"
+  value       = [aws_subnet.public_1.id, aws_subnet.public_2.id]
+}
+
+output "private_subnet_ids" {
+  description = "IDs of private subnets"
+  value       = [aws_subnet.private_1.id, aws_subnet.private_2.id]
 }
 
 # Sensitive output for automation

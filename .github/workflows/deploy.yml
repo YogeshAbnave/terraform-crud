@@ -1,10 +1,13 @@
-name: Deploy CRUD Application
+name: Deploy CRUD Application to Auto Scaling Group
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
 
 jobs:
   deploy:
@@ -13,6 +16,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -38,54 +48,82 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Get ASG instance IPs
+        id: get-instances
+        run: |
+          INSTANCE_IPS=$(aws ec2 describe-instances \
+            --filters "Name=tag:aws:autoscaling:groupName,Values=crud-app-asg" \
+                      "Name=instance-state-name,Values=running" \
+            --query 'Reservations[*].Instances[*].PublicIpAddress' \
+            --output text)
+          echo "instances=$INSTANCE_IPS" >> $GITHUB_OUTPUT
+          echo "Found instances: $INSTANCE_IPS"
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy backend to EC2
+      - name: Deploy to all ASG instances
         run: |
-          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} "sudo mkdir -p /var/www/backend && sudo chown -R ubuntu:ubuntu /var/www/backend"
-          scp -i ~/.ssh/id_rsa -r backend/* ubuntu@${{ secrets.EC2_HOST }}:/var/www/backend/
-
-      - name: Setup backend environment on EC2
-        run: |
-          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << 'ENDSSH'
-          cd /var/www/backend
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip
-          pip install -r requirements.txt
+          for IP in ${{ steps.get-instances.outputs.instances }}; do
+            echo "Deploying to instance: $IP"
+            
+            # Add to known hosts
+            ssh-keyscan -H $IP >> ~/.ssh/known_hosts
+            
+            # Deploy backend
+            ssh -i ~/.ssh/id_rsa ubuntu@$IP "sudo mkdir -p /var/www/backend && sudo chown -R ubuntu:ubuntu /var/www/backend"
+            scp -i ~/.ssh/id_rsa -r backend/* ubuntu@$IP:/var/www/backend/
+            
+            # Setup backend environment
+            ssh -i ~/.ssh/id_rsa ubuntu@$IP << 'ENDSSH'
+            cd /var/www/backend
+            python3 -m venv venv
+            source venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
           ENDSSH
-
-      - name: Deploy frontend to EC2
-        run: |
-          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} "sudo chown -R ubuntu:ubuntu /var/www/html"
-          scp -i ~/.ssh/id_rsa -r frontend/dist/* ubuntu@${{ secrets.EC2_HOST }}:/var/www/html/
-
-      - name: Restart services
-        run: |
-          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << 'ENDSSH'
-          sudo systemctl restart fastapi
-          sudo systemctl restart nginx
+            
+            # Deploy frontend
+            ssh -i ~/.ssh/id_rsa ubuntu@$IP "sudo chown -R ubuntu:ubuntu /var/www/html"
+            scp -i ~/.ssh/id_rsa -r frontend/dist/* ubuntu@$IP:/var/www/html/
+            
+            # Restart services
+            ssh -i ~/.ssh/id_rsa ubuntu@$IP << 'ENDSSH'
+            sudo systemctl restart fastapi
+            sudo systemctl restart nginx
           ENDSSH
+            
+            echo "✅ Deployed to $IP"
+          done
 
-      - name: Health check
+      - name: Get ALB DNS
+        id: get-alb
         run: |
-          sleep 10
-          curl -f http://${{ secrets.EC2_HOST }}/api/health || exit 1
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names crud-app-alb \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text)
+          echo "alb_dns=$ALB_DNS" >> $GITHUB_OUTPUT
+          echo "ALB DNS: $ALB_DNS"
+
+      - name: Health check via ALB
+        run: |
+          sleep 15
+          curl -f http://${{ steps.get-alb.outputs.alb_dns }}/api/health || exit 1
           echo "✅ Deployment successful!"
-          echo "🌐 Application URL: http://${{ secrets.EC2_HOST }}"
-          echo "🔌 API URL: http://${{ secrets.EC2_HOST }}/api"
+          echo "🌐 Application URL: http://${{ steps.get-alb.outputs.alb_dns }}"
 
       - name: Deployment summary
         if: success()
         run: |
           echo "### 🚀 Deployment Successful! 🎉" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Application URL:** http://${{ secrets.EC2_HOST }}" >> $GITHUB_STEP_SUMMARY
-          echo "**API URL:** http://${{ secrets.EC2_HOST }}/api" >> $GITHUB_STEP_SUMMARY
+          echo "**Application URL:** http://${{ steps.get-alb.outputs.alb_dns }}" >> $GITHUB_STEP_SUMMARY
+          echo "**API URL:** http://${{ steps.get-alb.outputs.alb_dns }}/api" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Instances Deployed:** ${{ steps.get-instances.outputs.instances }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Deployed at:** $(date)" >> $GITHUB_STEP_SUMMARY
