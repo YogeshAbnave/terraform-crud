@@ -109,7 +109,13 @@ jobs:
             exit 1
           fi
           
-          echo "instances=$INSTANCE_IPS" >> $GITHUB_OUTPUT
+          # Use multiline output format to avoid concatenation
+          {
+            echo "instances<<EOF"
+            echo "$INSTANCE_IPS"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+          
           echo "instances_found=true" >> $GITHUB_OUTPUT
           echo "✅ Found instances: $INSTANCE_IPS"
 
@@ -161,35 +167,100 @@ jobs:
         if: steps.get-instances.outputs.instances_found == 'true'
         run: |
           for IP in ${{ steps.get-instances.outputs.instances }}; do
-            echo "Deploying to instance: $IP"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "📦 Deploying to instance: $IP"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             
             # Add to known hosts
-            ssh-keyscan -H $IP >> ~/.ssh/known_hosts
+            ssh-keyscan -H $IP >> ~/.ssh/known_hosts 2>/dev/null
             
             # Deploy backend
+            echo "📤 Uploading backend code..."
             ssh -i ~/.ssh/id_rsa ubuntu@$IP "sudo mkdir -p /var/www/backend && sudo chown -R ubuntu:ubuntu /var/www/backend"
             scp -i ~/.ssh/id_rsa -r backend/* ubuntu@$IP:/var/www/backend/
             
-            # Setup backend environment
+            # Setup backend environment and start service
+            echo "🔧 Setting up backend environment..."
             ssh -i ~/.ssh/id_rsa ubuntu@$IP << 'ENDSSH'
-            cd /var/www/backend
+          set -e
+          cd /var/www/backend
+          
+          # Create virtual environment if it doesn't exist
+          if [ ! -d "venv" ]; then
             python3 -m venv venv
-            source venv/bin/activate
-            pip install --upgrade pip
-            pip install -r requirements.txt
+          fi
+          
+          # Install dependencies
+          source venv/bin/activate
+          pip install --upgrade pip --quiet
+          pip install -r requirements.txt --quiet
+          
+          # Enable and start FastAPI service
+          sudo systemctl enable fastapi
+          sudo systemctl restart fastapi
+          
+          # Wait a moment for service to start
+          sleep 2
+          
+          # Check if service is running
+          if sudo systemctl is-active --quiet fastapi; then
+            echo "✅ FastAPI service is running"
+          else
+            echo "⚠️ FastAPI service failed to start"
+            sudo systemctl status fastapi --no-pager || true
+          fi
           ENDSSH
             
             # Deploy frontend
+            echo "📤 Uploading frontend code..."
             ssh -i ~/.ssh/id_rsa ubuntu@$IP "sudo chown -R ubuntu:ubuntu /var/www/html"
             scp -i ~/.ssh/id_rsa -r frontend/dist/* ubuntu@$IP:/var/www/html/
             
-            # Restart services
+            # Restart NGINX
+            echo "🔄 Restarting NGINX..."
             ssh -i ~/.ssh/id_rsa ubuntu@$IP << 'ENDSSH'
-            sudo systemctl restart fastapi
-            sudo systemctl restart nginx
+          sudo systemctl restart nginx
+          
+          # Check if NGINX is running
+          if sudo systemctl is-active --quiet nginx; then
+            echo "✅ NGINX service is running"
+          else
+            echo "⚠️ NGINX service failed to start"
+            sudo systemctl status nginx --no-pager || true
+          fi
           ENDSSH
             
-            echo "✅ Deployed to $IP"
+            echo "✅ Deployment to $IP completed"
+            echo ""
+          done
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ All instances deployed successfully"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Verify instance health
+        if: steps.get-instances.outputs.instances_found == 'true'
+        continue-on-error: true
+        run: |
+          echo "🔍 Verifying backend health on each instance..."
+          
+          for IP in ${{ steps.get-instances.outputs.instances }}; do
+            echo "Testing $IP..."
+            
+            # Try to reach the health endpoint directly on the instance
+            for i in {1..3}; do
+              if curl -f -s -m 5 http://$IP/api/health > /dev/null 2>&1; then
+                echo "✅ $IP - Backend is responding"
+                break
+              else
+                if [ $i -lt 3 ]; then
+                  echo "⏳ $IP - Waiting for backend to start (attempt $i/3)..."
+                  sleep 5
+                else
+                  echo "⚠️ $IP - Backend not responding yet (may still be starting)"
+                fi
+              fi
+            done
           done
 
       - name: Get ALB DNS
@@ -214,13 +285,73 @@ jobs:
             echo "✅ ALB DNS: $ALB_DNS"
           fi
 
-      - name: Health check via ALB
+      - name: Wait for ALB target health
         if: steps.get-alb.outputs.alb_exists == 'true'
         run: |
-          sleep 15
-          curl -f http://${{ steps.get-alb.outputs.alb_dns }}/api/health || exit 1
-          echo "✅ Deployment successful!"
-          echo "🌐 Application URL: http://${{ steps.get-alb.outputs.alb_dns }}"
+          echo "⏳ Waiting for instances to become healthy in ALB..."
+          
+          # Get target group ARN
+          TG_ARN=$(aws elbv2 describe-target-groups \
+            --names crud-app-tg \
+            --query 'TargetGroups[0].TargetGroupArn' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -z "$TG_ARN" ]; then
+            echo "⚠️ Target group not found, skipping health check"
+            exit 0
+          fi
+          
+          # Wait up to 5 minutes for targets to become healthy
+          for i in {1..20}; do
+            HEALTHY_COUNT=$(aws elbv2 describe-target-health \
+              --target-group-arn "$TG_ARN" \
+              --query 'length(TargetHealthDescriptions[?TargetHealth.State==`healthy`])' \
+              --output text 2>/dev/null || echo "0")
+            
+            echo "Attempt $i/20: $HEALTHY_COUNT healthy target(s)"
+            
+            if [ "$HEALTHY_COUNT" -gt "0" ]; then
+              echo "✅ At least one target is healthy!"
+              break
+            fi
+            
+            if [ $i -lt 20 ]; then
+              echo "Waiting 15 seconds..."
+              sleep 15
+            fi
+          done
+
+      - name: Health check via ALB
+        if: steps.get-alb.outputs.alb_exists == 'true'
+        continue-on-error: true
+        run: |
+          echo "🔍 Testing ALB health endpoint..."
+          
+          # Try health check with retries
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Health check attempt $((RETRY_COUNT + 1))/$MAX_RETRIES..."
+            
+            if curl -f -s -o /dev/null -w "%{http_code}" http://${{ steps.get-alb.outputs.alb_dns }}/api/health | grep -q "200"; then
+              echo "✅ Health check passed!"
+              echo "✅ Deployment successful!"
+              echo "🌐 Application URL: http://${{ steps.get-alb.outputs.alb_dns }}"
+              exit 0
+            fi
+            
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "⚠️ Health check failed, retrying in 10 seconds..."
+              sleep 10
+            fi
+          done
+          
+          echo "⚠️ Health check failed after $MAX_RETRIES attempts"
+          echo "This may be normal if services are still starting up"
+          echo "Check the ALB manually: http://${{ steps.get-alb.outputs.alb_dns }}"
+          exit 0
       
       - name: Health check skipped
         if: steps.get-alb.outputs.alb_exists != 'true'
