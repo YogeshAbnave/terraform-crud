@@ -86,13 +86,17 @@ jobs:
         id: get-instances
         continue-on-error: true
         run: |
-          INSTANCE_IPS=$(aws ec2 describe-instances \
+          # Get instance IPs as JSON array
+          INSTANCE_IPS_JSON=$(aws ec2 describe-instances \
             --filters "Name=tag:aws:autoscaling:groupName,Values=crud-app-asg" \
                       "Name=instance-state-name,Values=running" \
             --query 'Reservations[*].Instances[*].PublicIpAddress' \
-            --output text 2>/dev/null || echo "")
+            --output json 2>/dev/null || echo "[]")
           
-          if [ -z "$INSTANCE_IPS" ]; then
+          # Flatten the nested array and convert to space-separated string
+          INSTANCE_IPS=$(echo "$INSTANCE_IPS_JSON" | jq -r 'flatten | join(" ")')
+          
+          if [ -z "$INSTANCE_IPS" ] || [ "$INSTANCE_IPS" == "null" ] || [ "$INSTANCE_IPS" == "" ]; then
             echo "❌ ERROR: No running instances found in ASG 'crud-app-asg'"
             echo ""
             echo "🔧 REQUIRED: Deploy Terraform infrastructure first!"
@@ -109,13 +113,8 @@ jobs:
             exit 1
           fi
           
-          # Use multiline output format to avoid concatenation
-          {
-            echo "instances<<EOF"
-            echo "$INSTANCE_IPS"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
-          
+          # Save as simple string (space-separated)
+          echo "instances=$INSTANCE_IPS" >> $GITHUB_OUTPUT
           echo "instances_found=true" >> $GITHUB_OUTPUT
           echo "✅ Found instances: $INSTANCE_IPS"
 
@@ -166,7 +165,10 @@ jobs:
       - name: Deploy to all ASG instances
         if: steps.get-instances.outputs.instances_found == 'true'
         run: |
-          for IP in ${{ steps.get-instances.outputs.instances }}; do
+          # Convert space-separated IPs to array
+          IPS="${{ steps.get-instances.outputs.instances }}"
+          
+          for IP in $IPS; do
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "📦 Deploying to instance: $IP"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -244,7 +246,10 @@ jobs:
         run: |
           echo "🔍 Verifying backend health on each instance..."
           
-          for IP in ${{ steps.get-instances.outputs.instances }}; do
+          # Convert space-separated IPs to array
+          IPS="${{ steps.get-instances.outputs.instances }}"
+          
+          for IP in $IPS; do
             echo "Testing $IP..."
             
             # Try to reach the health endpoint directly on the instance
