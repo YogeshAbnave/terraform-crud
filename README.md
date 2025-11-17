@@ -20,6 +20,15 @@ A full-stack CRUD application with automated deployment to AWS.
 - Terraform installed
 - Git & GitHub account
 
+## ⚙️ Configuration
+
+**Important:** This project is configured for AWS region **`ap-south-1`** (Mumbai, India).
+
+If you want to use a different region:
+1. Update `terraform/variables.tf` - change `aws_region` default value
+2. Update `.github/workflows/deploy.yml` - change `AWS_REGION` environment variable
+3. Ensure both match to avoid deployment errors
+
 ## 🚀 Quick Start
 
 ### Local Development

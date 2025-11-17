@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: us-east-1
+  AWS_REGION: ap-south-1
 
 jobs:
   deploy:
@@ -84,32 +84,81 @@ jobs:
 
       - name: Get ASG instance IPs
         id: get-instances
+        continue-on-error: true
         run: |
           INSTANCE_IPS=$(aws ec2 describe-instances \
             --filters "Name=tag:aws:autoscaling:groupName,Values=crud-app-asg" \
                       "Name=instance-state-name,Values=running" \
             --query 'Reservations[*].Instances[*].PublicIpAddress' \
-            --output text)
+            --output text 2>/dev/null || echo "")
           
           if [ -z "$INSTANCE_IPS" ]; then
             echo "❌ ERROR: No running instances found in ASG 'crud-app-asg'"
-            echo "Please ensure Terraform infrastructure is deployed:"
+            echo ""
+            echo "🔧 REQUIRED: Deploy Terraform infrastructure first!"
+            echo ""
+            echo "Run these commands:"
             echo "  cd terraform-crud/terraform"
             echo "  terraform init"
             echo "  terraform apply"
+            echo ""
+            echo "Or use the deployment script:"
+            echo "  .\deploy.ps1 -Deploy"
+            echo ""
+            echo "instances_found=false" >> $GITHUB_OUTPUT
             exit 1
           fi
           
           echo "instances=$INSTANCE_IPS" >> $GITHUB_OUTPUT
+          echo "instances_found=true" >> $GITHUB_OUTPUT
           echo "✅ Found instances: $INSTANCE_IPS"
 
+      - name: Infrastructure check failed
+        if: failure() && steps.get-instances.outcome == 'failure'
+        run: |
+          echo "### ⚠️ Deployment Failed - Infrastructure Not Found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The AWS infrastructure (ASG, ALB, EC2) has not been deployed yet." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔧 Required Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 1. Deploy Terraform Infrastructure" >> $GITHUB_STEP_SUMMARY
+          echo '```powershell' >> $GITHUB_STEP_SUMMARY
+          echo "cd terraform-crud/terraform" >> $GITHUB_STEP_SUMMARY
+          echo "terraform init" >> $GITHUB_STEP_SUMMARY
+          echo "terraform apply" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Or use the deployment script:" >> $GITHUB_STEP_SUMMARY
+          echo '```powershell' >> $GITHUB_STEP_SUMMARY
+          echo ".\deploy.ps1 -Deploy" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 2. Configure GitHub Secrets" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "After Terraform completes, add these secrets to your repository:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`AWS_ACCESS_KEY_ID\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`AWS_SECRET_ACCESS_KEY\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`EC2_PRIVATE_KEY\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 3. Re-run This Workflow" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Once infrastructure is deployed, re-run this workflow or push again." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📚 Documentation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See [DEPLOYMENT-ORDER.md](../blob/main/DEPLOYMENT-ORDER.md) for detailed instructions." >> $GITHUB_STEP_SUMMARY
+          exit 1
+
       - name: Setup SSH key
+        if: steps.get-instances.outputs.instances_found == 'true'
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
 
       - name: Deploy to all ASG instances
+        if: steps.get-instances.outputs.instances_found == 'true'
         run: |
           for IP in ${{ steps.get-instances.outputs.instances }}; do
             echo "Deploying to instance: $IP"

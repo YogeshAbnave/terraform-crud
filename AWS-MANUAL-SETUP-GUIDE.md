@@ -58,7 +58,7 @@ DynamoDB Table
 
 1. **Go to VPC Console:**
    - URL: https://console.aws.amazon.com/vpc/
-   - Region: us-east-1
+   - Region: ap-south-1
 
 2. **Click "Subnets" in left sidebar**
 
@@ -67,7 +67,7 @@ DynamoDB Table
 4. **Fill in details:**
    - **VPC ID:** Select `crud-app-vpc`
    - **Subnet name:** `crud-app-public-subnet-2`
-   - **Availability Zone:** `us-east-1b` (different from subnet 1)
+   - **Availability Zone:** `ap-south-1b` (different from subnet 1)
    - **IPv4 CIDR block:** `10.0.2.0/24`
 
 5. **Click "Create subnet"**
@@ -94,7 +94,7 @@ DynamoDB Table
 2. **Fill in details:**
    - **VPC ID:** `crud-app-vpc`
    - **Subnet name:** `crud-app-private-subnet-1`
-   - **Availability Zone:** `us-east-1a`
+   - **Availability Zone:** `ap-south-1a`
    - **IPv4 CIDR block:** `10.0.10.0/24`
 
 3. **Click "Create subnet"**
@@ -108,7 +108,7 @@ DynamoDB Table
 2. **Fill in details:**
    - **VPC ID:** `crud-app-vpc`
    - **Subnet name:** `crud-app-private-subnet-2`
-   - **Availability Zone:** `us-east-1b`
+   - **Availability Zone:** `ap-south-1b`
    - **IPv4 CIDR block:** `10.0.11.0/24`
 
 3. **Click "Create subnet"**
@@ -124,7 +124,7 @@ DynamoDB Table
 2. **Click "Allocate Elastic IP address"**
 
 3. **Settings:**
-   - **Network Border Group:** us-east-1
+   - **Network Border Group:** ap-south-1
    - **Public IPv4 address pool:** Amazon's pool
 
 4. **Click "Allocate"**
@@ -373,8 +373,8 @@ DynamoDB Table
 6. **Network mapping:**
    - **VPC:** `crud-app-vpc`
    - **Mappings:** Select BOTH availability zones:
-     - ✅ us-east-1a → `crud-app-public-subnet`
-     - ✅ us-east-1b → `crud-app-public-subnet-2`
+     - ✅ ap-south-1a → `crud-app-public-subnet`
+     - ✅ ap-south-1b → `crud-app-public-subnet-2`
 
 7. **Security groups:**
    - Remove default
@@ -389,7 +389,7 @@ DynamoDB Table
 
 10. **Wait 2-3 minutes** for state to become "Active"
 
-11. **Note the DNS name** (e.g., crud-app-alb-123456789.us-east-1.elb.amazonaws.com)
+11. **Note the DNS name** (e.g., crud-app-alb-123456789.ap-south-1.elb.amazonaws.com)
 
 ---
 
@@ -437,8 +437,8 @@ DynamoDB Table
 4. **Step 2: Choose instance launch options**
    - **VPC:** `crud-app-vpc`
    - **Availability Zones and subnets:** Select:
-     - ✅ `crud-app-public-subnet` (us-east-1a)
-     - ✅ `crud-app-public-subnet-2` (us-east-1b)
+     - ✅ `crud-app-public-subnet` (ap-south-1a)
+     - ✅ `crud-app-public-subnet-2` (ap-south-1b)
    - Click "Next"
 
 5. **Step 3: Configure advanced options**
@@ -485,8 +485,8 @@ DynamoDB Table
 3. **Step 2: Choose instance launch options**
    - **VPC:** `crud-app-vpc`
    - **Availability Zones and subnets:** Select:
-     - ✅ `crud-app-private-subnet-1` (us-east-1a)
-     - ✅ `crud-app-private-subnet-2` (us-east-1b)
+     - ✅ `crud-app-private-subnet-1` (ap-south-1a)
+     - ✅ `crud-app-private-subnet-2` (ap-south-1b)
    - Click "Next"
 
 4. **Step 3: Configure advanced options**
@@ -574,7 +574,7 @@ Repeat steps 8.1 and 8.2 for `crud-app-backend-asg`
 
 4. **Open in browser:**
    ```
-   http://crud-app-alb-123456789.us-east-1.elb.amazonaws.com
+   http://crud-app-alb-123456789.ap-south-1.elb.amazonaws.com
    ```
 
 5. **You should see your application!**
@@ -642,11 +642,11 @@ You've successfully created:
 
 | Resource | Console Link |
 |----------|--------------|
-| **Load Balancers** | https://console.aws.amazon.com/ec2/home?region=us-east-1#LoadBalancers: |
-| **Auto Scaling Groups** | https://console.aws.amazon.com/ec2/home?region=us-east-1#AutoScalingGroups: |
-| **Target Groups** | https://console.aws.amazon.com/ec2/home?region=us-east-1#TargetGroups: |
-| **Instances** | https://console.aws.amazon.com/ec2/home?region=us-east-1#Instances: |
-| **Subnets** | https://console.aws.amazon.com/vpc/home?region=us-east-1#subnets: |
+| **Load Balancers** | https://console.aws.amazon.com/ec2/home?region=ap-south-1#LoadBalancers: |
+| **Auto Scaling Groups** | https://console.aws.amazon.com/ec2/home?region=ap-south-1#AutoScalingGroups: |
+| **Target Groups** | https://console.aws.amazon.com/ec2/home?region=ap-south-1#TargetGroups: |
+| **Instances** | https://console.aws.amazon.com/ec2/home?region=ap-south-1#Instances: |
+| **Subnets** | https://console.aws.amazon.com/vpc/home?region=ap-south-1#subnets: |
 
 ---
 

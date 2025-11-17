@@ -93,7 +93,7 @@ terraform output app_url
 
 Example output:
 ```
-http://crud-app-alb-123456789.us-east-1.elb.amazonaws.com
+http://crud-app-alb-123456789.ap-south-1.elb.amazonaws.com
 ```
 
 ### View All Outputs:
@@ -173,7 +173,7 @@ curl http://YOUR-ALB-DNS-NAME
         │                               │
 ┌───────▼────────┐           ┌──────────▼──────┐
 │ Public Subnet 1│           │ Public Subnet 2 │
-│ (us-east-1a)   │           │ (us-east-1b)    │
+│ (ap-south-1a)   │           │ (ap-south-1b)    │
 │                │           │                 │
 │ EC2 Instance   │           │ EC2 Instance    │
 │ (Auto Scaled)  │           │ (Auto Scaled)   │
