@@ -47,7 +47,7 @@ jobs:
 
       - name: Deploy backend to EC2
         run: |
-          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} "mkdir -p /var/www/backend"
+          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} "sudo mkdir -p /var/www/backend && sudo chown -R ubuntu:ubuntu /var/www/backend"
           scp -i ~/.ssh/id_rsa -r backend/* ubuntu@${{ secrets.EC2_HOST }}:/var/www/backend/
 
       - name: Setup backend environment on EC2
@@ -62,6 +62,7 @@ jobs:
 
       - name: Deploy frontend to EC2
         run: |
+          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} "sudo chown -R ubuntu:ubuntu /var/www/html"
           scp -i ~/.ssh/id_rsa -r frontend/dist/* ubuntu@${{ secrets.EC2_HOST }}:/var/www/html/
 
       - name: Restart services
