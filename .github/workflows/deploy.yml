@@ -35,15 +35,15 @@ jobs:
           python-version: '3.11'
 
       - name: Install frontend dependencies
-        working-directory: ./frontend
+        working-directory: ./src/frontend
         run: npm ci
 
       - name: Build frontend
-        working-directory: ./frontend
+        working-directory: ./src/frontend
         run: npm run build
 
       - name: Install backend dependencies
-        working-directory: ./backend
+        working-directory: ./src/backend
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
@@ -79,7 +79,7 @@ jobs:
           if [ "${{ steps.check-infra.outputs.alb_exists }}" != "true" ] || [ "${{ steps.check-infra.outputs.asg_exists }}" != "true" ]; then
             echo ""
             echo "⚠️ Infrastructure incomplete. Deploy Terraform first:"
-            echo "  cd terraform-crud/terraform && terraform apply"
+            echo "  cd terraform-crud/infrastructure && terraform apply"
           fi
 
       - name: Get ASG instance IPs
@@ -102,7 +102,7 @@ jobs:
             echo "🔧 REQUIRED: Deploy Terraform infrastructure first!"
             echo ""
             echo "Run these commands:"
-            echo "  cd terraform-crud/terraform"
+            echo "  cd terraform-crud/infrastructure"
             echo "  terraform init"
             echo "  terraform apply"
             echo ""
@@ -129,7 +129,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 1. Deploy Terraform Infrastructure" >> $GITHUB_STEP_SUMMARY
           echo '```powershell' >> $GITHUB_STEP_SUMMARY
-          echo "cd terraform-crud/terraform" >> $GITHUB_STEP_SUMMARY
+          echo "cd terraform-crud/infrastructure" >> $GITHUB_STEP_SUMMARY
           echo "terraform init" >> $GITHUB_STEP_SUMMARY
           echo "terraform apply" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
@@ -179,7 +179,7 @@ jobs:
             # Deploy backend
             echo "📤 Uploading backend code..."
             ssh -i ~/.ssh/id_rsa ubuntu@$IP "sudo mkdir -p /var/www/backend && sudo chown -R ubuntu:ubuntu /var/www/backend"
-            scp -i ~/.ssh/id_rsa -r backend/* ubuntu@$IP:/var/www/backend/
+            scp -i ~/.ssh/id_rsa -r src/backend/* ubuntu@$IP:/var/www/backend/
             
             # Setup backend environment and start service
             echo "🔧 Setting up backend environment..."
@@ -216,7 +216,7 @@ jobs:
             # Deploy frontend
             echo "📤 Uploading frontend code..."
             ssh -i ~/.ssh/id_rsa ubuntu@$IP "sudo chown -R ubuntu:ubuntu /var/www/html"
-            scp -i ~/.ssh/id_rsa -r frontend/dist/* ubuntu@$IP:/var/www/html/
+            scp -i ~/.ssh/id_rsa -r src/frontend/dist/* ubuntu@$IP:/var/www/html/
             
             # Restart NGINX
             echo "🔄 Restarting NGINX..."
@@ -382,7 +382,7 @@ jobs:
             echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
             echo "1. Deploy Terraform infrastructure:" >> $GITHUB_STEP_SUMMARY
             echo '   ```bash' >> $GITHUB_STEP_SUMMARY
-            echo "   cd terraform-crud/terraform" >> $GITHUB_STEP_SUMMARY
+            echo "   cd terraform-crud/infrastructure" >> $GITHUB_STEP_SUMMARY
             echo "   terraform init" >> $GITHUB_STEP_SUMMARY
             echo "   terraform apply" >> $GITHUB_STEP_SUMMARY
             echo '   ```' >> $GITHUB_STEP_SUMMARY

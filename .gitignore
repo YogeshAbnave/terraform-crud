@@ -1,25 +1,28 @@
 # ==========================================
 # Terraform - Infrastructure Files
 # ==========================================
-**/.terraform/*
-*.tfstate
-*.tfstate.*
-*.tfstate.backup
-*.tfvars
-!*.tfvars.example
-.terraform.lock.hcl
-crash.log
-crash.*.log
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
+infrastructure/.terraform/
+infrastructure/*.tfstate
+infrastructure/*.tfstate.*
+infrastructure/*.tfstate.backup
+infrastructure/*.tfvars
+!infrastructure/*.tfvars.example
+infrastructure/.terraform.lock.hcl
+infrastructure/crash.log
+infrastructure/crash.*.log
+infrastructure/override.tf
+infrastructure/override.tf.json
+infrastructure/*_override.tf
+infrastructure/*_override.tf.json
 .terraformrc
 terraform.rc
 
 # ==========================================
 # Node.js - Frontend Dependencies
 # ==========================================
+src/frontend/node_modules/
+src/frontend/dist/
+src/frontend/build/
 node_modules/
 dist/
 build/
@@ -38,6 +41,11 @@ lerna-debug.log*
 # ==========================================
 # Python - Backend Dependencies
 # ==========================================
+src/backend/__pycache__/
+src/backend/venv/
+src/backend/env/
+src/backend/ENV/
+src/backend/.venv
 __pycache__/
 *.py[cod]
 *$py.class

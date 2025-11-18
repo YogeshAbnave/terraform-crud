@@ -46,6 +46,6 @@ resource "aws_iam_role_policy" "dynamodb_policy" {
 
 # IAM Instance Profile
 resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "crud-app-ec2-profile"
+  name = "crud-app-ec2-profile-app"
   role = aws_iam_role.ec2_role.name
 }

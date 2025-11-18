@@ -4,12 +4,12 @@ Write-Host "🔐 Extracting GitHub Secrets from Terraform" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
-if (-not (Test-Path "terraform")) {
-    Write-Host "❌ Error: terraform directory not found" -ForegroundColor Red
+if (-not (Test-Path "infrastructure")) {
+    Write-Host "❌ Error: infrastructure directory not found" -ForegroundColor Red
     exit 1
 }
 
-Push-Location terraform
+Push-Location infrastructure
 
 if (-not (Test-Path "terraform.tfstate")) {
     Write-Host "❌ Error: Terraform state not found" -ForegroundColor Red

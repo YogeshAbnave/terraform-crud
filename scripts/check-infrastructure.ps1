@@ -138,17 +138,17 @@ if ($allGood) {
     Write-Host "  git push origin main" -ForegroundColor Gray
     Write-Host ""
     Write-Host "Or use the deployment script:" -ForegroundColor Cyan
-    Write-Host "  .\deploy.ps1 -Push" -ForegroundColor Gray
+    Write-Host "  .\scripts\deploy.ps1 -Push" -ForegroundColor Gray
 } else {
     Write-Host "❌ Infrastructure checks failed!" -ForegroundColor Red
     Write-Host ""
     Write-Host "Deploy Terraform infrastructure first:" -ForegroundColor Yellow
-    Write-Host "  cd terraform" -ForegroundColor Gray
+    Write-Host "  cd infrastructure" -ForegroundColor Gray
     Write-Host "  terraform init" -ForegroundColor Gray
     Write-Host "  terraform apply" -ForegroundColor Gray
     Write-Host ""
     Write-Host "Or use the deployment script:" -ForegroundColor Yellow
-    Write-Host "  .\deploy.ps1 -Deploy" -ForegroundColor Gray
+    Write-Host "  .\scripts\deploy.ps1 -Deploy" -ForegroundColor Gray
     Write-Host ""
     Write-Host "Then run this check again:" -ForegroundColor Yellow
     Write-Host "  .\scripts\check-infrastructure.ps1" -ForegroundColor Gray

@@ -5,17 +5,17 @@ Write-Host ""
 
 if ($Deploy) {
     Write-Host "Deploying Infrastructure..." -ForegroundColor Green
-    Push-Location terraform
+    Push-Location infrastructure
     terraform init
     terraform apply -auto-approve
     Pop-Location
     Write-Host ""
-    Write-Host "Next: .\deploy.ps1 -Secrets" -ForegroundColor Yellow
+    Write-Host "Next: .\scripts\deploy.ps1 -Secrets" -ForegroundColor Yellow
 }
 elseif ($Secrets) {
     Write-Host "GitHub Secrets" -ForegroundColor Green
     Write-Host "============================================" -ForegroundColor Cyan
-    Push-Location terraform
+    Push-Location infrastructure
     $EC2_IP = terraform output -raw ec2_public_ip
     $KEY_PATH = terraform output -raw private_key_path
     Pop-Location
@@ -28,7 +28,7 @@ elseif ($Secrets) {
     Write-Host ""
     Write-Host "Add these to: https://github.com/YOUR_USERNAME/terraform-crud/settings/secrets/actions" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Next: .\deploy.ps1 -Push" -ForegroundColor Yellow
+    Write-Host "Next: .\scripts\deploy.ps1 -Push" -ForegroundColor Yellow
     $EC2_IP | Set-Clipboard
     Write-Host "EC2_HOST copied to clipboard!" -ForegroundColor Green
 }
@@ -44,7 +44,7 @@ elseif ($Destroy) {
     Write-Host "Destroying Infrastructure..." -ForegroundColor Red
     $confirm = Read-Host "Type 'yes' to confirm"
     if ($confirm -eq "yes") {
-        Push-Location terraform
+        Push-Location infrastructure
         terraform destroy -auto-approve
         Pop-Location
     }
@@ -58,9 +58,9 @@ elseif ($All) {
 }
 else {
     Write-Host "Usage:" -ForegroundColor Yellow
-    Write-Host "  .\deploy.ps1 -Deploy    # Deploy infrastructure"
-    Write-Host "  .\deploy.ps1 -Secrets   # Show GitHub secrets"
-    Write-Host "  .\deploy.ps1 -Push      # Push code to GitHub"
-    Write-Host "  .\deploy.ps1 -All       # Run all steps"
-    Write-Host "  .\deploy.ps1 -Destroy   # Destroy infrastructure"
+    Write-Host "  .\scripts\deploy.ps1 -Deploy    # Deploy infrastructure"
+    Write-Host "  .\scripts\deploy.ps1 -Secrets   # Show GitHub secrets"
+    Write-Host "  .\scripts\deploy.ps1 -Push      # Push code to GitHub"
+    Write-Host "  .\scripts\deploy.ps1 -All       # Run all steps"
+    Write-Host "  .\scripts\deploy.ps1 -Destroy   # Destroy infrastructure"
 }

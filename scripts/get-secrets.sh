@@ -7,13 +7,13 @@ echo "🔐 Extracting GitHub Secrets from Terraform"
 echo "============================================"
 echo ""
 
-# Check if terraform directory exists
-if [ ! -d "terraform" ]; then
-    echo "❌ Error: terraform directory not found"
+# Check if infrastructure directory exists
+if [ ! -d "infrastructure" ]; then
+    echo "❌ Error: infrastructure directory not found"
     exit 1
 fi
 
-cd terraform
+cd infrastructure
 
 # Check if Terraform has been applied
 if [ ! -f "terraform.tfstate" ]; then

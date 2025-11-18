@@ -62,7 +62,7 @@ resource "aws_autoscaling_group" "app" {
   health_check_type         = "ELB"
   health_check_grace_period = 300
   min_size                  = 2
-  max_size                  = 4
+  max_size                  = 10 # Increased from 4
   desired_capacity          = 2
 
   launch_template {
@@ -80,9 +80,9 @@ resource "aws_autoscaling_group" "app" {
 # Auto Scaling Policy - Scale Up
 resource "aws_autoscaling_policy" "scale_up" {
   name                   = "crud-app-scale-up"
-  scaling_adjustment     = 1
+  scaling_adjustment     = 2 # Scale up by 2 instances at a time
   adjustment_type        = "ChangeInCapacity"
-  cooldown               = 300
+  cooldown               = 180 # Reduced from 300 for faster scaling
   autoscaling_group_name = aws_autoscaling_group.app.name
 }
 
@@ -90,12 +90,12 @@ resource "aws_autoscaling_policy" "scale_up" {
 resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   alarm_name          = "crud-app-high-cpu"
   comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = "2"
+  evaluation_periods  = "1" # Reduced from 2 for faster response
   metric_name         = "CPUUtilization"
   namespace           = "AWS/EC2"
-  period              = "120"
+  period              = "60" # Reduced from 120 for faster detection
   statistic           = "Average"
-  threshold           = "70"
+  threshold           = "40" # Lowered from 70 to trigger earlier
   alarm_description   = "This metric monitors ec2 cpu utilization"
   alarm_actions       = [aws_autoscaling_policy.scale_up.arn]
 
